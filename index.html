@@ -1,7 +1,71 @@
-<!DOCTYPE html>
 <html>
+<script src="//cdnjs.cloudflare.com/ajax/libs/dygraph/2.0.0/dygraph.min.js"></script>
+<link rel="stylesheet" src="//cdnjs.cloudflare.com/ajax/libs/dygraph/2.0.0/dygraph.min.css" />
+<head>
+<script type="text/javascript"
+  src="dygraph.js"></script>
+<link rel="stylesheet" src="dygraph.css" />
+</head>
 <body>
-<h1>Hello World</h1>
-<p>I'm hosted with GitHub Pages.</p>
+<h1> A-C Slinga - Varje puls = 10L</h1>
+<div id="graphdiv"
+ style="width:1000px; height:300px;"></div>
+
+<script type="text/javascript">
+   g = new Dygraph(document.getElementById("graphdiv"),
+		'vm_ac_log.txt',
+			{            legend: 'always',
+            showRangeSelector: true,
+						valueRange: [0, 80],
+      rollPeriod: 4,
+      showRoller: true,
+      errorBars: true			
+
+			}
+              );
+</script>
+<br>
+<h1> B-D Slinga Varje puls = 10L</h1 </h1>
+<div id="graphdiv1" style="width:1000px; height:300px;"></div>
+
+<script>  
+   g1 = new Dygraph(document.getElementById("graphdiv1"),
+		'vm_bd_log.txt',
+			{            legend: 'always',
+            showRangeSelector: true,
+			valueRange: [0, 80],
+			      rollPeriod: 1,
+      showRoller: true,
+      errorBars: true
+			}
+              );
+</script>
+<br>
+<h1> E-H Slinga </h1>
+<div id="graphdiv2" style="width:1000px; height:300px;"></div>
+<script type="text/javascript">	  
+   g2 = new Dygraph(document.getElementById("graphdiv2"),
+		'vm_efgh_log.txt',
+			{            legend: 'always',
+            showRangeSelector: true,
+						valueRange: [0, 80],		
+      rollPeriod: 4,
+      showRoller: true,
+      errorBars: true			
+			}
+              );
+</script>
+<br>
+<h1> snabblog </h1>
+<div id="graphdiv3" style="width:1000px; height:300px;"></div>
+<script type="text/javascript">	  
+   g3 = new Dygraph(document.getElementById("graphdiv3"),
+		'snabblog.txt',
+			{ legend: 'always',
+			      showRoller: true,
+            showRangeSelector: true			
+			}
+              );
+              </script>
 </body>
 </html>
