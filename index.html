@@ -1,18 +1,63 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Google Annotation Chart</title>
+  <title>Google Annotation Chart with Gauges</title>
   <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+  <style>
+    .chart-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .gauge-container {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 20px;
+      width: 100%;
+    }
+    .gauge-chart {
+      width: 300px;
+      height: 200px;
+      margin: 0 10px;
+    }
+  </style>
   <script type="text/javascript">
-    google.charts.load('current', {'packages':['annotationchart']});
-    google.charts.setOnLoadCallback(drawChart);
+    google.charts.load('current', {'packages':['annotationchart', 'gauge']});
+    google.charts.setOnLoadCallback(drawDashboard);
 
-    function drawChart() {
+    function drawDashboard() {
       const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQqNbS5Og1FLSwFKefdzLlvULMVfRKd-Nnmc7wFDXau0eHbQq7SmAWD-3wtlt45fVbMkoX6T_tngWQO/pub?gid=2112379681&single=true&output=csv'; // Replace with your actual CSV URL
-      const chartDivId = 'annotation_chart';
-      let chart;
+      const annotationChartDivId = 'annotation_chart';
+      let annotationChart;
       let dataTable;
-      let options;
+      let annotationOptions;
+
+      const gaugeData = [
+        ['Label', 'Value'],
+        ['AC', 0],
+        ['BD', 0],
+        ['EFGH', 0]
+      ];
+      const gaugeDataTables = [
+        google.visualization.arrayToDataTable([gaugeData[0], gaugeData[1]]),
+        google.visualization.arrayToDataTable([gaugeData[0], gaugeData[2]]),
+        google.visualization.arrayToDataTable([gaugeData[0], gaugeData[3]])
+      ];
+
+      const gaugeOptions = {
+        redFrom: 600, redTo: 800,
+        yellowFrom: 400, yellowTo: 600,
+        minorTicks: 10,
+        max: 800
+      };
+
+      const gaugeChartDivs = [
+        document.getElementById('gauge_b'),
+        document.getElementById('gauge_c'),
+        document.getElementById('gauge_d')
+      ];
+      const gaugeCharts = gaugeChartDivs.map(div => new google.visualization.Gauge(div));
+
 
       fetch(csvUrl)
         .then(response => response.text())
@@ -40,23 +85,40 @@
             const valueC = parseFloat(row[2]);
             const valueD = parseFloat(row[3]);
 
-             if (!isNaN(timestamp.getTime()) && !isNaN(valueB) && !isNaN(valueC) && !isNaN(valueD)) {
-                  chartDataArray.push([timestamp, valueB, valueC, valueD]);
-              } else {
-                console.warn("Skipping row due to invalid data:", row);
-              }
+            if (!isNaN(timestamp.getTime()) && !isNaN(valueB) && !isNaN(valueC) && !isNaN(valueD)) {
+              chartDataArray.push([timestamp, valueB, valueC, valueD]);
+            } else {
+              console.warn("Skipping row due to invalid data:", row);
+            }
           });
 
           dataTable = google.visualization.arrayToDataTable(chartDataArray);
 
-          options = {
+          // Get the last row of data for the gauges
+          const lastRow = dataRows[dataRows.length - 1];
+          const lastValueB = lastRow ? parseFloat(lastRow[1]) : 0;
+          const lastValueC = lastRow ? parseFloat(lastRow[2]) : 0;
+          const lastValueD = lastRow ? parseFloat(lastRow[3]) : 0;
+
+          // Update gauge data
+          gaugeDataTables[0].setValue(0, 1, lastValueB * 4);
+          gaugeDataTables[1].setValue(0, 1, lastValueC * 4);
+          gaugeDataTables[2].setValue(0, 1, lastValueD * 4);
+
+          // Draw the gauges
+          gaugeCharts.forEach((chart, index) => {
+            chart.draw(gaugeDataTables[index], gaugeOptions);
+          });
+
+
+          annotationOptions = {
             title: 'Dynamic Data Over Time',
             displayDateBar: true,
             legendPosition: 'none'
           };
 
-          chart = new google.visualization.AnnotationChart(document.getElementById(chartDivId));
-          chart.draw(dataTable, options);
+          annotationChart = new google.visualization.AnnotationChart(document.getElementById(annotationChartDivId));
+          annotationChart.draw(dataTable, annotationOptions);
         })
         .catch(error => console.error('Error fetching or processing CSV data:', error));
     }
@@ -68,6 +130,13 @@
   </script>
 </head>
 <body>
-  <div id="annotation_chart" style="width: 900px; height: 500px;"></div>
+  <div class="chart-container">
+    <div class="gauge-container">
+      <div id="gauge_b" class="gauge-chart"></div>
+      <div id="gauge_c" class="gauge-chart"></div>
+      <div id="gauge_d" class="gauge-chart"></div>
+    </div>
+    <div id="annotation_chart" style="width: 900px; height: 500px;"></div>
+  </div>
 </body>
 </html>
