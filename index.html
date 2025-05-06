@@ -58,7 +58,7 @@
       }
     }
     @media (min-width: 481px) and (max-width: 768px) { /* Tablet */
-       .chart-container{
+      .chart-container{
           background-color: #fff;
        }
     }
@@ -178,15 +178,27 @@
     }
 
     function getDeviceType() {
-      const width = window.innerWidth;
-      if (width < 480) {
-        return 'mobile';
-      } else if (width < 768) {
-        return 'tablet';
-      } else {
-        return 'desktop';
-      }
+        const width = window.innerWidth;
+        if (width < 480) {
+            return 'mobile';
+        } else if (width < 768) {
+            return 'tablet';
+        } else {
+            return 'desktop';
+        }
     }
+
+    window.onload = function() {
+        const deviceType = getDeviceType();
+        console.log("Device Type:", deviceType);
+        const chartContainer = document.querySelector('.chart-container');
+
+        if (deviceType === 'mobile') {
+            chartContainer.style.backgroundColor = 'blue';
+        } else if (deviceType === 'desktop') {
+            chartContainer.style.backgroundColor = 'orange';
+        }
+    };
   </script>
 </head>
 <body>
@@ -198,14 +210,5 @@
     </div>
     <div id="annotation_chart" class="annotation_chart"></div>
   </div>
-  <script>
-    const deviceType = getDeviceType();
-    console.log("Device Type:", deviceType);
-    if (deviceType === 'mobile') {
-      document.querySelector('.chart-container').style.backgroundColor = 'blue';
-    } else if (deviceType === 'desktop') {
-      document.querySelector('.chart-container').style.backgroundColor = 'orange';
-    }
-  </script>
 </body>
 </html>
