@@ -1,71 +1,73 @@
+<!DOCTYPE html>
 <html>
-<script src="//cdnjs.cloudflare.com/ajax/libs/dygraph/2.0.0/dygraph.min.js"></script>
-<link rel="stylesheet" src="//cdnjs.cloudflare.com/ajax/libs/dygraph/2.0.0/dygraph.min.css" />
 <head>
-<script type="text/javascript"
-  src="dygraph.js"></script>
-<link rel="stylesheet" src="dygraph.css" />
+  <title>Google Annotation Chart</title>
+  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+  <script type="text/javascript">
+    google.charts.load('current', {'packages':['annotationchart']});
+    google.charts.setOnLoadCallback(drawChart);
+
+    function drawChart() {
+      const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQqNbS5Og1FLSwFKefdzLlvULMVfRKd-Nnmc7wFDXau0eHbQq7SmAWD-3wtlt45fVbMkoX6T_tngWQO/pub?gid=2112379681&single=true&output=csv'; // Replace with your actual CSV URL
+      const chartDivId = 'annotation_chart';
+      let chart;
+      let dataTable;
+      let options;
+
+      fetch(csvUrl)
+        .then(response => response.text())
+        .then(csvData => {
+          const allRows = parseCSV(csvData);
+
+          if (allRows.length <= 1) {
+            console.error("Not enough data to draw the chart.");
+            return;
+          }
+
+          // Extract headers (first row)
+          const headers = allRows[0];
+
+          // Extract data rows (skip the header)
+          const dataRows = allRows.slice(1);
+          
+          // Prepare the data array for Google Charts
+          const chartDataArray = [headers];
+
+          dataRows.forEach(row => {
+            // Assuming Column A is Date/Time (parse it as Date object)
+            const timestamp = new Date(row[0]);
+            const valueB = parseFloat(row[1]);
+            const valueC = parseFloat(row[2]);
+            const valueD = parseFloat(row[3]);
+
+             if (!isNaN(timestamp.getTime()) && !isNaN(valueB) && !isNaN(valueC) && !isNaN(valueD)) {
+                  chartDataArray.push([timestamp, valueB, valueC, valueD]);
+              } else {
+                console.warn("Skipping row due to invalid data:", row);
+              }
+          });
+
+          dataTable = google.visualization.arrayToDataTable(chartDataArray);
+
+          options = {
+            title: 'Dynamic Data Over Time',
+            displayDateBar: true,
+            legendPosition: 'none'
+          };
+
+          chart = new google.visualization.AnnotationChart(document.getElementById(chartDivId));
+          chart.draw(dataTable, options);
+        })
+        .catch(error => console.error('Error fetching or processing CSV data:', error));
+    }
+
+    // Simple CSV parsing function
+    function parseCSV(csvText) {
+      return csvText.trim().split('\n').map(line => line.split(','));
+    }
+  </script>
 </head>
 <body>
-<h1> A-C Slinga - Varje puls = 10L</h1>
-<div id="graphdiv"
- style="width:1000px; height:300px;"></div>
-
-<script type="text/javascript">
-   g = new Dygraph(document.getElementById("graphdiv"),
-		'vm_ac_log.txt',
-			{            legend: 'always',
-            showRangeSelector: true,
-						valueRange: [0, 80],
-      rollPeriod: 4,
-      showRoller: true,
-      errorBars: true			
-
-			}
-              );
-</script>
-<br>
-<h1> B-D Slinga Varje puls = 10L</h1 </h1>
-<div id="graphdiv1" style="width:1000px; height:300px;"></div>
-
-<script>  
-   g1 = new Dygraph(document.getElementById("graphdiv1"),
-		'vm_bd_log.txt',
-			{            legend: 'always',
-            showRangeSelector: true,
-			valueRange: [0, 80],
-			      rollPeriod: 1,
-      showRoller: true,
-      errorBars: true
-			}
-              );
-</script>
-<br>
-<h1> E-H Slinga </h1>
-<div id="graphdiv2" style="width:1000px; height:300px;"></div>
-<script type="text/javascript">	  
-   g2 = new Dygraph(document.getElementById("graphdiv2"),
-		'vm_efgh_log.txt',
-			{            legend: 'always',
-            showRangeSelector: true,
-						valueRange: [0, 80],		
-      rollPeriod: 4,
-      showRoller: true,
-      errorBars: true			
-			}
-              );
-</script>
-<br>
-<h1> snabblog </h1>
-<div id="graphdiv3" style="width:1000px; height:300px;"></div>
-<script type="text/javascript">	  
-   g3 = new Dygraph(document.getElementById("graphdiv3"),
-		'snabblog.txt',
-			{ legend: 'always',
-			      showRoller: true,
-            showRangeSelector: true			
-			}
-              );
-              </script>
+  <div id="annotation_chart" style="width: 900px; height: 500px;"></div>
 </body>
 </html>
