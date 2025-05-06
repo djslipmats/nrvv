@@ -9,6 +9,7 @@
       flex-direction: column;
       align-items: center;
       width: 100%;
+      background-color: #fff; /* Default background color */
     }
     .gauge-container {
       display: flex;
@@ -51,6 +52,14 @@
       }
       #annotation_chart {
         height: 300px;
+      }
+      .chart-container {
+        background-color: blue; /* Blue background on mobile */
+      }
+    }
+    @media (min-width: 769px) { /* Desktop */
+      .chart-container {
+        background-color: orange; /* Orange background on desktop */
       }
     }
   </style>
@@ -187,6 +196,11 @@
   <script>
     const deviceType = getDeviceType();
     console.log("Device Type:", deviceType);
+    if (deviceType === 'mobile') {
+      document.querySelector('.chart-container').style.backgroundColor = 'blue';
+    } else if (deviceType === 'desktop') {
+      document.querySelector('.chart-container').style.backgroundColor = 'orange';
+    }
   </script>
 </body>
 </html>
