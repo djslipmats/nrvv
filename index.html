@@ -8,49 +8,49 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      width: 100%; /* Ensure container takes full width */
+      width: 100%;
     }
     .gauge-container {
       display: flex;
       justify-content: center;
       margin-bottom: 20px;
       width: 100%;
-      flex-wrap: wrap; /* Allow gauges to wrap on smaller screens */
+      flex-wrap: wrap;
     }
     .gauge-chart {
       margin: 10px;
-      flex: 1 1 300px; /* Distribute space, but set a base width */
-      max-width: 400px; /* Limit maximum size */
+      flex: 1 1 300px;
+      max-width: 400px;
       height: 200px;
     }
     #annotation_chart {
-      width: 100%; /* Full width */
-      max-width: 900px; /* Limit maximum size */
+      width: 100%;
+      max-width: 900px;
       height: 500px;
     }
 
     /* Media queries for different screen sizes */
     @media (max-width: 768px) { /* Tablet */
       .gauge-chart {
-        flex: 1 1 100%; /* Take full width on tablet */
+        flex: 1 1 100%;
         max-width: 100%;
       }
       #annotation_chart {
         max-width: 100%;
-        height: 400px; /* Adjust height for tablet */
+        height: 400px;
       }
     }
     @media (max-width: 480px) { /* Mobile */
       .gauge-container {
-        flex-direction: column; /* Stack gauges vertically on mobile */
+        flex-direction: column;
       }
       .gauge-chart {
         flex: 1 1 100%;
         max-width: 100%;
-        height: 300px; /* Adjust height for mobile */
+        height: 300px;
       }
       #annotation_chart {
-        height: 300px; /* Adjust height for mobile */
+        height: 300px;
       }
     }
   </style>
@@ -78,8 +78,10 @@
       ];
 
       const gaugeOptions = {
-        redFrom: 600, redTo: 800,
-        yellowFrom: 400, yellowTo: 600,
+        redFrom: 600,
+        redTo: 800,
+        yellowFrom: 400,
+        yellowTo: 600,
         minorTicks: 10,
         max: 800
       };
@@ -160,16 +162,31 @@
     function parseCSV(csvText) {
       return csvText.trim().split('\n').map(line => line.split(','));
     }
+
+    function getDeviceType() {
+      const width = window.innerWidth;
+      if (width < 480) {
+        return 'mobile';
+      } else if (width < 768) {
+        return 'tablet';
+      } else {
+        return 'desktop';
+      }
+    }
   </script>
 </head>
 <body>
   <div class="chart-container">
-    <div class="gauge-container">
+    <div class="gauge-container" id="gauge_container">
       <div id="gauge_b" class="gauge-chart"></div>
       <div id="gauge_c" class="gauge-chart"></div>
       <div id="gauge_d" class="gauge-chart"></div>
     </div>
     <div id="annotation_chart" class="annotation_chart"></div>
   </div>
+  <script>
+    const deviceType = getDeviceType();
+    console.log("Device Type:", deviceType);
+  </script>
 </body>
 </html>
