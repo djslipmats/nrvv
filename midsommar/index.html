@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tidsstämpelloggare</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f2f5;
+            padding: 1rem;
+        }
+        .container {
+            max-width: 500px;
+            width: 100%;
+        }
+        /* Custom styles for the message box */
+        .message-box {
+            position: fixed;
+            bottom: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #333;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+            z-index: 1000;
+        }
+        .message-box.show {
+            opacity: 1;
+            visibility: visible;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="container bg-white p-8 rounded-xl shadow-lg border border-gray-200">
+        <h1 class="text-3xl font-bold text-center mb-6 text-gray-800">Tidsstämpelloggare</h1>
+
+        <!-- Name Input Section -->
+        <div id="nameInputSection" class="space-y-4 mb-6">
+            <label for="userName" class="block text-lg font-medium text-gray-700">Ange ditt namn:</label>
+            <input type="text" id="userName" placeholder="Ditt Namn"
+                   class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                   aria-label="Ange ditt namn">
+            <button id="saveNameButton"
+                    class="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold text-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 shadow-md">
+                Spara Namn
+            </button>
+        </div>
+
+        <!-- Start Button Section (Hidden initially) -->
+        <div id="startButtonSection" class="hidden text-center space-y-6">
+            <p class="text-xl text-gray-700">Välkommen, <span id="displayedUserName" class="font-semibold text-blue-700"></span>!</p>
+            <button id="startButton"
+                    class="w-full bg-green-600 text-white py-5 px-10 rounded-lg font-bold text-2xl hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition duration-200 shadow-lg">
+                Registrera Tidsstämpel
+            </button>
+        </div>
+
+        <!-- Message Box -->
+        <div id="messageBox" class="message-box"></div>
+    </div>
+
+    <script>
+        // IMPORTANT: This is YOUR DEPLOYED GOOGLE APPS SCRIPT WEB APP URL
+        const googleAppsScriptURL = 'https://script.google.com/macros/s/AKfycbwpL8zD0Y2qZbqrCffjSB6JQenE8Bn3E_ez-xWfQWg1mCjIVSe26mRSnaVGVXXdsRjp/exec';
+
+        const userNameInput = document.getElementById('userName');
+        const saveNameButton = document.getElementById('saveNameButton');
+        const nameInputSection = document.getElementById('nameInputSection');
+        const startButtonSection = document.getElementById('startButtonSection');
+        const displayedUserName = document.getElementById('displayedUserName');
+        const startButton = document.getElementById('startButton');
+        const messageBox = document.getElementById('messageBox');
+
+        /**
+         * Displays a message in a transient pop-up box.
+         * @param {string} message The message to display.
+         * @param {number} duration The duration in milliseconds to display the message.
+         */
+        function showMessageBox(message, duration = 3000) {
+            messageBox.textContent = message;
+            messageBox.classList.add('show');
+            setTimeout(() => {
+                messageBox.classList.remove('show');
+            }, duration);
+        }
+
+        /**
+         * Checks if a user name is stored in local storage and updates the UI accordingly.
+         */
+        function checkUserName() {
+            const storedName = localStorage.getItem('currentUserName');
+            if (storedName) {
+                userNameInput.value = storedName; // Pre-fill the input
+                displayedUserName.textContent = storedName;
+                nameInputSection.classList.add('hidden');
+                startButtonSection.classList.remove('hidden');
+            } else {
+                nameInputSection.classList.remove('hidden');
+                startButtonSection.classList.add('hidden');
+            }
+        }
+
+        /**
+         * Handles saving the user's name to local storage and updating the UI.
+         */
+        saveNameButton.addEventListener('click', () => {
+            const name = userNameInput.value.trim();
+            if (name) {
+                localStorage.setItem('currentUserName', name);
+                displayedUserName.textContent = name;
+                nameInputSection.classList.add('hidden');
+                startButtonSection.classList.remove('hidden');
+                showMessageBox(`Namn "${name}" sparat!`);
+            } else {
+                showMessageBox('Vänligen ange ditt namn.', 2000);
+                userNameInput.focus();
+            }
+        });
+
+        /**
+         * Handles the button click to send data to Google Apps Script.
+         */
+        startButton.addEventListener('click', async () => {
+            const userName = localStorage.getItem('currentUserName');
+            if (!userName) {
+                showMessageBox('Vänligen ange ditt namn först.', 3000);
+                nameInputSection.classList.remove('hidden');
+                startButtonSection.classList.add('hidden');
+                userNameInput.focus();
+                return;
+            }
+
+            // Get current timestamp in a readable format
+            const timestamp = new Date().toLocaleString();
+
+            // Prepare data for the POST request
+            const dataToSend = {
+                name: userName,
+                timestamp: timestamp
+            };
+
+            // Indicate loading state
+            startButton.textContent = 'Registrerar...';
+            startButton.disabled = true;
+            startButton.classList.remove('bg-green-600', 'hover:bg-green-700');
+            startButton.classList.add('bg-gray-400');
+
+
+            try {
+                // Ensure the URL is correctly set by the user
+                if (googleAppsScriptURL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE' || !googleAppsScriptURL.startsWith('https://script.google.com/macros/')) {
+                    throw new Error("Please update 'googleAppsScriptURL' in the JavaScript with your actual deployed Apps Script URL.");
+                }
+
+                const response = await fetch(googleAppsScriptURL, {
+                    method: 'POST',
+                    mode: 'no-cors', // Use 'no-cors' for Google Apps Script web apps
+                    cache: 'no-cache',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(dataToSend)
+                });
+
+                // Since 'no-cors' mode is used, we cannot inspect the response directly.
+                // We assume success if no network error occurred.
+                showMessageBox('Tidsstämpel registrerad!');
+
+            } catch (error) {
+                console.error('Error posting data:', error);
+                showMessageBox(`Misslyckades med att registrera tidsstämpel. Fel: ${error.message}. Kontrollera konsolen för detaljer.`, 5000);
+            } finally {
+                // Reset button state
+                startButton.textContent = 'Registrera Tidsstämpel';
+                startButton.disabled = false;
+                startButton.classList.remove('bg-gray-400');
+                startButton.classList.add('bg-green-600', 'hover:bg-green-700');
+            }
+        });
+
+        // Initialize UI on page load
+        document.addEventListener('DOMContentLoaded', checkUserName);
+    </script>
+</body>
+</html>
