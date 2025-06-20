@@ -41,6 +41,11 @@
             opacity: 1;
             visibility: visible;
         }
+        /* Style for the clickable name */
+        #displayedUserName {
+            cursor: pointer; /* Indicate it's clickable */
+            text-decoration: underline; /* Visual cue for clickability */
+        }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
@@ -66,6 +71,7 @@
                     class="w-full bg-green-600 text-white py-5 px-10 rounded-lg font-bold text-2xl hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition duration-200 shadow-lg">
                 Registrera Tidsstämpel
             </button>
+            <!-- Removed the "Ändra Namn" button here -->
         </div>
 
         <!-- Message Box -->
@@ -110,6 +116,7 @@
             } else {
                 nameInputSection.classList.remove('hidden');
                 startButtonSection.classList.add('hidden');
+                userNameInput.value = ''; // Clear input field if no name is stored
             }
         }
 
@@ -189,6 +196,15 @@
                 startButton.classList.remove('bg-gray-400');
                 startButton.classList.add('bg-green-600', 'hover:bg-green-700');
             }
+        });
+
+        /**
+         * Handles the click on the displayed username to revert to the name input page.
+         */
+        displayedUserName.addEventListener('click', () => {
+            localStorage.removeItem('currentUserName'); // Clear the stored name
+            checkUserName(); // Re-evaluate UI state (will show name input)
+            showMessageBox('Namn raderat. Vänligen ange nytt namn.', 3000);
         });
 
         // Initialize UI on page load
