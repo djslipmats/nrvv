@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tidslinjen: Game Control</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-6">
+
+    <div id="app" class="max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 space-y-8">
+        <h1 class="text-4xl font-extrabold text-center text-indigo-700 border-b pb-4">Tidslinjen: Game Control</h1>
+        <p class="text-center text-sm text-gray-500">Styr spelets tillstånd och frågor.</p>
+        
+        <!-- API Status och Loading -->
+        <div id="apiStatus" class="p-3 text-center rounded-lg font-semibold bg-blue-100 text-blue-700">Laddar spelstatus...</div>
+
+        <!-- Övergripande Kontroller -->
+        <div class="bg-gray-50 p-6 rounded-lg shadow-inner space-y-4">
+            <h2 class="text-2xl font-bold text-gray-800">Spelstatus & Kontroller</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Välj Fråga -->
+                <div class="flex flex-col space-y-2">
+                    <label for="questionSelect" class="font-medium text-gray-700">Välj Fråga:</label>
+                    <select id="questionSelect" class="p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 bg-white" onchange="previewQuestion()"></select>
+                </div>
+                <!-- Aktuell Status -->
+                <div class="p-3 bg-indigo-50 rounded-lg border border-indigo-200">
+                    <p class="font-bold text-indigo-700">Aktuell Fråga:</p>
+                    <span id="currentQuestionIndexDisplay" class="text-3xl font-extrabold text-indigo-800"># -1 (Ej Startad)</span>
+                </div>
+            </div>
+
+            <!-- Frågehantering -->
+            <div class="flex flex-wrap gap-3 pt-4 border-t mt-4">
+                <button onclick="startNextQuestion()" id="startNextButton" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition duration-150 disabled:bg-gray-400">
+                    <span id="startNextText">Starta Fråga #1 (Starta Tid)</span>
+                </button>
+                <button onclick="toggleTimer(false)" id="stopTimerButton" class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-3 px-4 rounded-lg transition duration-150 disabled:bg-gray-400">Stoppa Tid</button>
+                <button onclick="revealAnswer()" id="revealButton" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg transition duration-150 disabled:bg-gray-400">Avslöja Svar</button>
+            </div>
+            
+            <div id="currentQuestionPreview" class="mt-4 p-4 bg-gray-200 rounded-lg hidden">
+                <p class="font-bold">Förhandsvisning:</p>
+                <p id="previewText" class="text-lg"></p>
+                <p id="previewCorrectYear" class="text-sm text-gray-600"></p>
+            </div>
+        </div>
+
+        <!-- Live Svarsöversikt -->
+        <div class="space-y-4">
+            <h2 class="text-2xl font-bold text-gray-800">Live Svarsöversikt (Fråga <span id="responseQuestionIndex"></span>)</h2>
+            <div id="timerMonitor" class="text-center text-3xl font-extrabold p-2 bg-yellow-100 rounded-lg">Timer: 00:00</div>
+
+            <div id="responsesContainer" class="overflow-x-auto">
+                <table class="min-w-full bg-white border border-gray-200 rounded-lg">
+                    <thead>
+                        <tr class="bg-gray-200 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                            <th class="p-3">Lag ID</th>
+                            <th class="p-3">Svar (År)</th>
+                            <th class="p-3">Tidstämpel</th>
+                            <th class="p-3">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="responsesBody" class="divide-y divide-gray-200">
+                        <!-- Svarsrader fylls i här -->
+                        <tr><td colspan="4" class="p-4 text-center text-gray-500">Väntar på lag att svara...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+    </div>
+
+    <script>
+        // API-Endpoint från din driftsatta Google Apps Script webbapp
+        const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbzD1eP5QQ2rg2vkGwVfECAgwYVFB9s-qHVm3R3TbSM6-ocfeHT4TybPU7tidU8tqtZn0Q/exec";
+        
+        // Lokalt tillstånd
+        let masterState = {};
+        let allQuestions = [];
+        let pollingInterval = null;
+        let timerInterval = null;
+
+        // Element Referenser
+        const apiStatus = document.getElementById('apiStatus');
+        const questionSelect = document.getElementById('questionSelect');
+        const currentQuestionIndexDisplay = document.getElementById('currentQuestionIndexDisplay');
+        const startNextButton = document.getElementById('startNextButton');
+        const startNextText = document.getElementById('startNextText');
+        const stopTimerButton = document.getElementById('stopTimerButton');
+        const revealButton = document.getElementById('revealButton');
+        const responsesBody = document.getElementById('responsesBody');
+        const responseQuestionIndex = document.getElementById('responseQuestionIndex');
+        const timerMonitor = document.getElementById('timerMonitor');
+        const currentQuestionPreview = document.getElementById('currentQuestionPreview');
+        const previewText = document.getElementById('previewText');
+        const previewCorrectYear = document.getElementById('previewCorrectYear');
+
+        /**
+         * Skickar en uppdatering av spelstatus till Apps Script.
+         */
+        async function updateMasterState(updates) {
+            try {
+                // Inaktivera alla knappar under uppdatering
+                disableControls(true);
+
+                const response = await fetch(`${API_ENDPOINT}?action=updateMasterState`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updates)
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    apiStatus.textContent = `Status uppdaterad: ${Object.keys(updates).join(', ')}`;
+                    apiStatus.className = 'p-3 text-center rounded-lg font-semibold bg-green-100 text-green-700';
+                    // Tvinga en pollning direkt för att synkronisera
+                    await pollGameState();
+                } else {
+                    throw new Error(result.error);
+                }
+            } catch (error) {
+                console.error("Master State-uppdateringsfel:", error);
+                apiStatus.textContent = `Fel vid uppdatering: ${error.message}`;
+                apiStatus.className = 'p-3 text-center rounded-lg font-semibold bg-red-100 text-red-700';
+            } finally {
+                disableControls(false);
+            }
+        }
+        
+        /**
+         * Laddar in frågorna i Select-elementet.
+         */
+        function populateQuestionSelect() {
+            questionSelect.innerHTML = '<option value="-1">0: Spelet Ej Startat</option>';
+            allQuestions.forEach((q, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = `${index + 1}: ${q.question}`;
+                questionSelect.appendChild(option);
+            });
+            // Välj den aktuella frågan
+            questionSelect.value = masterState.currentQuestionIndex;
+            previewQuestion();
+        }
+
+        /**
+         * Förhandsgranskar den valda frågan.
+         */
+        function previewQuestion() {
+            const index = parseInt(questionSelect.value, 10);
+            if (index >= 0 && index < allQuestions.length) {
+                const q = allQuestions[index];
+                previewText.textContent = q.question;
+                previewCorrectYear.textContent = `Rätt Svar: ${q.correctYear}`;
+                currentQuestionPreview.classList.remove('hidden');
+            } else {
+                previewText.textContent = '';
+                previewCorrectYear.textContent = '';
+                currentQuestionPreview.classList.add('hidden');
+            }
+        }
+        
+        /**
+         * Startar nästa fråga och timern.
+         */
+        function startNextQuestion() {
+            const selectedIndex = parseInt(questionSelect.value, 10);
+            
+            if (selectedIndex < 0 || selectedIndex >= allQuestions.length) {
+                alert("Vänligen välj en giltig fråga att starta.");
+                return;
+            }
+
+            // Återställ svar för att ta emot nya inlämningar
+            const newMasterState = {
+                currentQuestionIndex: selectedIndex,
+                isTimerRunning: true,
+                isRevealed: false,
+                questionStartTimeMS: new Date().getTime(), // Nya starttiden
+                allResponses: {} // Rensa tidigare svar för denna omgång
+            };
+            
+            updateMasterState(newMasterState);
+        }
+
+        /**
+         * Stoppar timern.
+         */
+        function toggleTimer(isRunning) {
+            updateMasterState({ isTimerRunning: isRunning });
+        }
+        
+        /**
+         * Avslöjar svaret.
+         */
+        function revealAnswer() {
+             updateMasterState({ isRevealed: true, isTimerRunning: false });
+        }
+
+        /**
+         * Inaktiverar/aktiverar alla primära knappar.
+         */
+        function disableControls(disabled) {
+            startNextButton.disabled = disabled;
+            stopTimerButton.disabled = disabled;
+            revealButton.disabled = disabled;
+            questionSelect.disabled = disabled;
+        }
+
+        /**
+         * Uppdaterar den visuella timern.
+         */
+        function updateTimerMonitor() {
+            if (!masterState.isTimerRunning) {
+                timerMonitor.textContent = 'Timer Stoppad';
+                timerMonitor.className = 'text-center text-3xl font-extrabold p-2 bg-gray-200 text-gray-600 rounded-lg';
+                return;
+            }
+
+            const deadline = masterState.questionStartTimeMS + masterState.submissionDurationMS;
+            const remainingMS = deadline - new Date().getTime();
+            
+            if (remainingMS <= 0) {
+                timerMonitor.textContent = 'TIDEN UTE!';
+                timerMonitor.className = 'text-center text-3xl font-extrabold p-2 bg-red-200 text-red-700 rounded-lg';
+                // Automatisk stopp av timer-status i Master State
+                if (masterState.isTimerRunning) {
+                    toggleTimer(false);
+                }
+                return;
+            }
+
+            const totalSeconds = Math.max(0, Math.floor(remainingMS / 1000));
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            const timeString = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            
+            timerMonitor.textContent = `Tid kvar: ${timeString}`;
+            
+            if (totalSeconds <= 10) {
+                 timerMonitor.className = 'text-center text-3xl font-extrabold p-2 bg-red-200 text-red-700 rounded-lg';
+            } else if (totalSeconds <= 30) {
+                 timerMonitor.className = 'text-center text-3xl font-extrabold p-2 bg-yellow-200 text-yellow-700 rounded-lg';
+            } else {
+                 timerMonitor.className = 'text-center text-3xl font-extrabold p-2 bg-green-200 text-green-700 rounded-lg';
+            }
+        }
+
+        /**
+         * Huvudpollningsfunktion för att hämta status.
+         */
+        async function pollGameState() {
+            try {
+                const response = await fetch(`${API_ENDPOINT}?action=getStatus`);
+                const state = await response.json();
+
+                if (!state || state.success === false) {
+                    throw new Error(state.error || "Okänt fel");
+                }
+                
+                masterState = state.fullMasterState;
+                allQuestions = state.allQuestions;
+
+                apiStatus.textContent = `Senast uppdaterad: ${new Date().toLocaleTimeString()}`;
+                apiStatus.className = 'p-3 text-center rounded-lg font-semibold bg-blue-100 text-blue-700';
+
+                // Uppdatera Kontrollgränssnittet
+                populateQuestionSelect();
+
+                const currentQIndex = masterState.currentQuestionIndex;
+                const totalQuestions = allQuestions.length;
+                
+                let nextIndex = currentQIndex + 1;
+                if (nextIndex >= totalQuestions) nextIndex = -1; 
+                
+                currentQuestionIndexDisplay.textContent = `# ${currentQIndex >= 0 ? currentQIndex + 1 : 'Ej Startad'}`;
+                
+                if (currentQIndex === -1) {
+                    startNextText.textContent = `Starta Fråga #1`;
+                } else if (currentQIndex < totalQuestions - 1) {
+                    startNextText.textContent = `Gå till Fråga #${nextIndex + 1} & Starta Tid`;
+                } else {
+                    startNextText.textContent = `Sista Frågan (Index ${currentQIndex + 1})`;
+                }
+
+                // Uppdatera knapparnas tillstånd
+                stopTimerButton.disabled = !masterState.isTimerRunning;
+                revealButton.disabled = masterState.isRevealed || masterState.isTimerRunning || currentQIndex < 0;
+
+                // Uppdatera svarsöversikten
+                renderResponses();
+
+            } catch (error) {
+                console.error("Pollningsfel:", error);
+                apiStatus.textContent = `Kopplingsfel: Kan inte nå Apps Script. Error: ${error.message}`;
+                apiStatus.className = 'p-3 text-center rounded-lg font-semibold bg-red-100 text-red-700';
+            }
+        }
+
+        /**
+         * Renderar live-svaren i tabellen.
+         */
+        function renderResponses() {
+            const responses = masterState.allResponses || {};
+            const qIndex = masterState.currentQuestionIndex;
+            const currentQuestion = allQuestions[qIndex];
+
+            responseQuestionIndex.textContent = qIndex >= 0 ? `#${qIndex + 1}` : 'Ej Startad';
+            
+            let html = '';
+            let teamIds = Object.keys(responses).sort(); // Sortera för stabil visning
+
+            if (teamIds.length === 0) {
+                 html = `<tr><td colspan="4" class="p-4 text-center text-gray-500">Väntar på lag att svara...</td></tr>`;
+            } else {
+                teamIds.forEach(teamId => {
+                    const response = responses[teamId];
+                    let statusText = 'Skickat';
+                    let statusColor = 'text-blue-600 font-semibold';
+                    
+                    if (currentQuestion && masterState.isRevealed) {
+                        const correctYear = currentQuestion.correctYear;
+                        const guessedYear = Number(response.Response);
+                        const diff = Math.abs(correctYear - guessedYear);
+
+                        if (diff === 0) {
+                            statusText = 'EXAKT TRÄFF! (+10p)';
+                            statusColor = 'text-green-600 font-extrabold';
+                        } else if (diff <= 5) {
+                            statusText = `Nära! (${diff} år fel)`;
+                            statusColor = 'text-yellow-600 font-semibold';
+                        } else {
+                            statusText = `Långt borta. (${diff} år fel)`;
+                            statusColor = 'text-red-600';
+                        }
+                    }
+
+                    html += `
+                        <tr>
+                            <td class="p-3 font-semibold">${teamId}</td>
+                            <td class="p-3 text-center">${response.Response}</td>
+                            <td class="p-3 text-sm">${new Date(response.Timestamp).toLocaleTimeString()}</td>
+                            <td class="p-3 ${statusColor}">${statusText}</td>
+                        </tr>
+                    `;
+                });
+            }
+            responsesBody.innerHTML = html;
+        }
+
+        /**
+         * Initierar pollningsloopen och timern.
+         */
+        function startPollingAndTimers() {
+            // Starta huvudpollning
+            pollGameState();
+            pollingInterval = setInterval(pollGameState, 3000); // Pollar spelstatus var 3:e sekund
+
+            // Starta lokal timeruppdatering
+            timerInterval = setInterval(updateTimerMonitor, 50); // Uppdaterar timern snabbt
+        }
+        
+        // Starta allt när sidan laddats
+        startPollingAndTimers();
+    </script>
+</body>
+</html>

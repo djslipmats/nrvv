@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tidslinjen: Lagklient</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        /* Anpassad styling för färgteman */
+        .theme-dark { background-color: #1f2937; color: #f9fafb; }
+        .theme-light { background-color: #f3f4f6; color: #111827; }
+        .submission-area { transition: all 0.5s ease-in-out; }
+    </style>
+</head>
+<body class="theme-dark h-screen flex items-center justify-center p-4">
+
+    <div id="app" class="w-full max-w-lg bg-gray-800 theme-dark shadow-2xl rounded-xl p-8 space-y-8">
+        <h1 class="text-3xl font-extrabold text-center text-indigo-400">Tidslinjen Quiz</h1>
+        <p class="text-center text-sm text-gray-400">Lagets svarsgränssnitt</p>
+
+        <!-- Steg 1: Lag-ID-Input -->
+        <div id="teamSetup" class="space-y-4">
+            <label for="teamIdInput" class="block text-lg font-medium text-gray-300">Ange ditt Lag-ID:</label>
+            <input type="text" id="teamIdInput" placeholder="T.ex. Team A" class="w-full p-3 border border-gray-600 rounded-lg bg-gray-700 text-white focus:ring-indigo-500 focus:border-indigo-500">
+            <button onclick="setTeamId()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition duration-150">Starta Spel</button>
+        </div>
+
+        <!-- Steg 2: Spelgränssnitt -->
+        <div id="quizInterface" class="hidden space-y-6">
+            <p class="text-lg font-semibold text-center text-gray-300">Inloggad som: <span id="displayTeamId" class="text-indigo-400 font-extrabold"></span></p>
+
+            <!-- Status & Fråga -->
+            <div id="statusContainer" class="text-center p-4 rounded-lg bg-gray-700 shadow-inner">
+                <h2 id="questionDisplay" class="text-2xl font-bold mb-2 text-white min-h-[4rem]">Väntar på nästa fråga...</h2>
+                <div id="timerDisplay" class="text-5xl font-extrabold text-red-500 mt-4">00:00</div>
+                <p id="timerStatus" class="text-sm text-gray-400"></p>
+            </div>
+
+            <!-- Svarsfält -->
+            <div id="submissionContainer" class="submission-area p-4 rounded-lg bg-gray-700 space-y-4">
+                <label for="yearInput" class="block text-lg font-medium text-gray-300">Gissa Årtalet:</label>
+                <input type="number" id="yearInput" placeholder="T.ex. 1994" min="1900" max="2100" class="w-full p-3 border border-gray-600 rounded-lg bg-gray-900 text-white text-center text-xl focus:ring-indigo-500 focus:border-indigo-500" disabled>
+                <button id="submitButton" onclick="submitYear()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition duration-150 disabled:bg-gray-500" disabled>Skicka Svar</button>
+                <p id="submissionMessage" class="text-center text-sm"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API-Endpoint från din driftsatta Google Apps Script webbapp
+        const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbzD1eP5QQ2rg2vkGwVfECAgwYVFB9s-qHVm3R3TbSM6-ocfeHT4TybPU7tidU8tqtZn0Q/exec";
+        
+        // Lokalt tillstånd
+        let teamId = localStorage.getItem('teamId') || '';
+        let lastKnownQuestionIndex = -2;
+        let hasSubmittedCurrentQuestion = false;
+
+        // Element Referenser
+        const teamSetup = document.getElementById('teamSetup');
+        const quizInterface = document.getElementById('quizInterface');
+        const displayTeamId = document.getElementById('displayTeamId');
+        const questionDisplay = document.getElementById('questionDisplay');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const timerStatus = document.getElementById('timerStatus');
+        const yearInput = document.getElementById('yearInput');
+        const submitButton = document.getElementById('submitButton');
+        const submissionMessage = document.getElementById('submissionMessage');
+        const submissionContainer = document.getElementById('submissionContainer');
+
+        /**
+         * Sätter Lag-ID och uppdaterar UI.
+         */
+        function setTeamId() {
+            const input = document.getElementById('teamIdInput').value.trim();
+            if (input) {
+                teamId = input;
+                localStorage.setItem('teamId', teamId);
+                updateUIState();
+                startPolling();
+            }
+        }
+
+        /**
+         * Uppdaterar UI baserat på om Lag-ID är satt.
+         */
+        function updateUIState() {
+            if (teamId) {
+                teamSetup.classList.add('hidden');
+                quizInterface.classList.remove('hidden');
+                displayTeamId.textContent = teamId;
+            } else {
+                teamSetup.classList.remove('hidden');
+                quizInterface.classList.add('hidden');
+            }
+        }
+        
+        /**
+         * Skickar lagets gissning till Google Apps Script.
+         */
+        async function submitYear() {
+            if (!teamId) {
+                showMessage("Fel: Lag-ID saknas.", 'red');
+                return;
+            }
+            const year = parseInt(yearInput.value, 10);
+            if (isNaN(year) || year < 1900 || year > 2100) {
+                showMessage("Vänligen ange ett giltigt årtal (1900-2100).", 'yellow');
+                return;
+            }
+
+            // Inaktivera knapp omedelbart för att förhindra dubbla klick
+            submitButton.disabled = true;
+            submitButton.textContent = 'Skickar...';
+
+            const payload = {
+                teamId: teamId,
+                response: year,
+                eventId: lastKnownQuestionIndex // Frågeindexet som besvaras
+            };
+
+            try {
+                const response = await fetch(`${API_ENDPOINT}?action=submitResponse`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showMessage(`Svar (${year}) mottogs framgångsrikt!`, 'green');
+                    hasSubmittedCurrentQuestion = true;
+                    // Låt knappen vara inaktiverad tills nästa fråga
+                    yearInput.disabled = true;
+                    submitButton.textContent = 'Svarat!';
+                } else {
+                    // Om servern returnerar ett fel (t.ex. tidsgränsen är ute)
+                    showMessage(`Fel: ${result.error}`, 'red');
+                    submitButton.disabled = false;
+                    submitButton.textContent = 'Skicka Svar';
+                }
+
+            } catch (error) {
+                console.error("Inskickningsfel:", error);
+                showMessage("Nätverksfel eller problem med Apps Script.", 'red');
+                submitButton.disabled = false;
+                submitButton.textContent = 'Skicka Svar';
+            }
+        }
+        
+        /**
+         * Visar meddelanden i klientgränssnittet.
+         */
+        function showMessage(msg, color) {
+            submissionMessage.textContent = msg;
+            submissionMessage.className = `text-center text-sm mt-2 font-semibold text-${color}-400`;
+        }
+
+        /**
+         * Uppdaterar den visuella nedräkningen.
+         */
+        function updateTimer(state) {
+            const { questionStartTimeMS, submissionDurationMS, isTimerRunning } = state;
+            
+            if (!isTimerRunning) {
+                timerDisplay.textContent = '00:00';
+                timerStatus.textContent = 'Timer Stoppad';
+                yearInput.disabled = true;
+                submitButton.disabled = true;
+                return;
+            }
+            
+            const deadline = questionStartTimeMS + submissionDurationMS;
+            const remainingMS = deadline - new Date().getTime();
+            
+            if (remainingMS <= 0) {
+                timerDisplay.textContent = 'TIDEN UTE!';
+                timerDisplay.classList.add('text-red-500');
+                timerDisplay.classList.remove('text-yellow-500');
+                timerStatus.textContent = 'För sent att svara.';
+                yearInput.disabled = true;
+                submitButton.disabled = true;
+                return;
+            }
+
+            // Konvertera ms till minuter:sekunder
+            const totalSeconds = Math.max(0, Math.floor(remainingMS / 1000));
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            
+            const timeString = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            
+            timerDisplay.textContent = timeString;
+            timerStatus.textContent = 'Tid kvar att svara';
+            
+            // Färgkodning för timer
+            if (totalSeconds <= 10) {
+                 timerDisplay.classList.remove('text-yellow-500');
+                 timerDisplay.classList.add('text-red-500');
+            } else if (totalSeconds <= 30) {
+                 timerDisplay.classList.remove('text-red-500');
+                 timerDisplay.classList.add('text-yellow-500');
+            } else {
+                 timerDisplay.classList.remove('text-red-500', 'text-yellow-500');
+                 timerDisplay.classList.add('text-green-500');
+            }
+        }
+
+        /**
+         * Pollningsfunktion för att hämta aktuell spelstatus.
+         */
+        async function pollGameState() {
+            if (!teamId) return;
+
+            try {
+                const response = await fetch(`${API_ENDPOINT}?action=getStatus`);
+                const state = await response.json();
+
+                if (!state || state.success === false) {
+                    questionDisplay.textContent = 'Kunde inte ladda spelstatus.';
+                    return;
+                }
+                
+                // --- Hantera Ny Fråga ---
+                const currentQIndex = state.currentQuestionIndex;
+
+                if (currentQIndex !== lastKnownQuestionIndex) {
+                    // Ny fråga startad
+                    lastKnownQuestionIndex = currentQIndex;
+                    hasSubmittedCurrentQuestion = false;
+                    yearInput.value = '';
+                    yearInput.disabled = false;
+                    submitButton.disabled = false;
+                    submitButton.textContent = 'Skicka Svar';
+                    showMessage(`Fråga #${currentQIndex + 1} startad!`, 'indigo');
+                }
+
+                // --- Uppdatera Frågevisning och Inmatningsstatus ---
+                if (currentQIndex >= 0 && state.questionText) {
+                    questionDisplay.textContent = `Fråga #${currentQIndex + 1}: ${state.questionText}`;
+                } else {
+                    questionDisplay.textContent = 'Väntar på att quizmastern ska starta spelet...';
+                    yearInput.disabled = true;
+                    submitButton.disabled = true;
+                }
+
+                // --- Uppdatera Timer och Svarsstatus ---
+                updateTimer(state);
+                
+                if (state.isTimerRunning && !hasSubmittedCurrentQuestion) {
+                    // Tillåt inlämning om tid finns kvar och laget inte svarat
+                    yearInput.disabled = false;
+                    submitButton.disabled = false;
+                    submitButton.textContent = 'Skicka Svar';
+                } else if (hasSubmittedCurrentQuestion) {
+                    // Laget har svarat, håll inaktiverat
+                    yearInput.disabled = true;
+                    submitButton.disabled = true;
+                    submitButton.textContent = 'Svarat!';
+                }
+                
+                // Dölj/Visa svarsruta om timern är stoppad och inte redo
+                if (currentQIndex < 0 || !state.isTimerRunning) {
+                     submissionContainer.classList.add('opacity-50');
+                } else {
+                     submissionContainer.classList.remove('opacity-50');
+                }
+
+            } catch (error) {
+                console.error("Pollningsfel:", error);
+                questionDisplay.textContent = 'Kopplingsfel: Kontrollera nätverket.';
+            }
+        }
+
+        /**
+         * Startar den periodiska pollningsloopen.
+         */
+        function startPolling() {
+            pollGameState(); // Första körningen direkt
+            setInterval(pollGameState, 1000); // Uppdatera varje sekund
+        }
+
+        // Initiering
+        updateUIState();
+        if (teamId) {
+            startPolling();
+        }
+    </script>
+</body>
+</html>

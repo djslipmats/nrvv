@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tidslinje Quiz Master Display</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#10B981', // Emerald Green
+                        secondary: '#F59E0B', // Amber
+                        darkbg: '#0F172A', // Slate 900
+                        cardbg: '#1E293B', // Slate 800
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        body {
+            background-color: #0F172A;
+            color: #E2E8F0;
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.5s;
+            overflow: hidden; /* Prevent scrolling */
+        }
+        /* Custom styles for the scoreboard rows */
+        .score-row {
+            background-color: #1E293B;
+            border-left: 5px solid #10B981;
+            transition: all 0.3s ease-in-out;
+        }
+        .score-row:nth-child(even) {
+            background-color: #111827; /* Slightly darker stripe */
+        }
+        .correct-answer {
+            background-color: #22C55E !important; /* Green */
+            border-left-color: #15803D !important;
+            color: #111827;
+        }
+        .incorrect-answer {
+            background-color: #EF4444 !important; /* Red */
+            border-left-color: #B91C1C !important;
+            color: #FFF;
+        }
+        .near-answer {
+             background-color: #F59E0B !important; /* Amber */
+             border-left-color: #D97706 !important;
+             color: #111827;
+        }
+    </style>
+</head>
+<body class="p-2 md:p-6 lg:p-10 flex flex-col h-screen">
+
+    <!-- 1. Fullscreen Prompt / Start Button -->
+    <div id="fullscreen-prompt" class="absolute inset-0 bg-darkbg z-50 flex items-center justify-center p-8">
+        <div class="text-center">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-white mb-8">Tidslinje Quiz Display</h1>
+            <p class="text-xl text-gray-400 mb-10">Klicka på knappen nedan för att maximera visningen till helskärm.</p>
+            <button onclick="toggleFullScreen()" class="bg-primary hover:bg-emerald-600 text-darkbg font-bold py-4 px-12 rounded-full text-2xl transition duration-300 shadow-xl transform hover:scale-105">
+                Starta Helskärmsläge
+            </button>
+        </div>
+    </div>
+
+    <!-- 2. Main Display Content (Hidden until Fullscreen is activated or dismissed) -->
+    <div id="main-display" class="hidden flex-1 flex flex-col space-y-4">
+        
+        <!-- Header & Timer Section -->
+        <header class="flex justify-between items-center p-4 rounded-xl bg-cardbg shadow-lg">
+            <h1 class="text-3xl font-extrabold text-primary">Tidslinje Quiz</h1>
+            <div class="flex items-center space-x-4">
+                <div class="text-lg font-semibold text-gray-400">
+                    <span id="q-number">Händelse #0</span> / <span id="q-total">5</span>
+                </div>
+                <div id="timer-display" class="text-4xl font-bold p-3 rounded-lg bg-red-600 text-white min-w-[120px] text-center shadow-inner">
+                    00:00
+                </div>
+            </div>
+        </header>
+
+        <!-- Question Section -->
+        <section id="question-section" class="flex-1 flex flex-col justify-center items-center text-center p-8 rounded-xl bg-cardbg shadow-lg min-h-[40vh]">
+            <h2 class="text-xl font-medium text-secondary mb-4">AKTUELL FRÅGA:</h2>
+            <p id="question-text" class="text-5xl md:text-6xl font-extrabold text-white leading-tight">
+                Väntar på att spelet ska startas...
+            </p>
+            <p id="answer-reveal" class="text-4xl mt-6 font-bold text-primary hidden">
+                Rätt svar: 1989
+            </p>
+        </section>
+
+        <!-- Scoreboard / Status Section -->
+        <section class="p-4 rounded-xl bg-cardbg shadow-lg">
+            <h3 class="text-2xl font-bold mb-3 text-white border-b border-gray-600 pb-2">Poängtavla</h3>
+            <div id="scoreboard" class="grid grid-cols-1 gap-2">
+                <!-- Score rows will be inserted here -->
+                <div class="score-row p-3 rounded-lg flex justify-between items-center">
+                    <span class="text-lg font-semibold">Team A</span>
+                    <span class="text-2xl font-bold text-secondary">0 P</span>
+                </div>
+                <div class="score-row p-3 rounded-lg flex justify-between items-center">
+                    <span class="text-lg font-semibold">Team B</span>
+                    <span class="text-2xl font-bold text-secondary">0 P</span>
+                </div>
+            </div>
+            <p id="status-message" class="mt-4 text-center text-gray-400 text-sm">Väntar på anslutning från Game Control...</p>
+        </section>
+
+    </div>
+
+    <script>
+        // Global Game State (Placeholder, usually fetched from the server/master state)
+        let currentState = {
+            questionIndex: 0,
+            questionText: "Väntar på att spelet ska startas...",
+            totalQuestions: 5,
+            isTimerRunning: false,
+            timeRemaining: 30,
+            isRevealed: false,
+            correctAnswer: 1989, // Example answer
+            teamScores: [
+                { id: 'Team A', score: 10, response: 1990, hasAnswered: true },
+                { id: 'Team B', score: 0, response: null, hasAnswered: false },
+                { id: 'Team C', score: 7, response: 1989, hasAnswered: true },
+                { id: 'Team D', score: 4, response: 1995, hasAnswered: true }
+            ],
+            theme: 'dark'
+        };
+        
+        /**
+         * Attempts to enter full-screen mode for the entire document element.
+         * Note: This must be triggered by a user action (like a click).
+         */
+        function toggleFullScreen() {
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen();
+            } else if (elem.webkitRequestFullscreen) { /* Safari */
+                elem.webkitRequestFullscreen();
+            } else if (elem.msRequestFullscreen) { /* IE11 */
+                elem.msRequestFullscreen();
+            }
+            // Once called, the listener will handle the UI update
+        }
+
+        /**
+         * Update the display based on the theme setting.
+         */
+        function updateTheme(theme) {
+            const body = document.body;
+            if (theme === 'light') {
+                body.classList.add('bg-gray-100', 'text-gray-900');
+                body.classList.remove('bg-darkbg', 'text-E2E8F0');
+                // Could update other colors here
+            } else {
+                body.classList.remove('bg-gray-100', 'text-gray-900');
+                body.classList.add('bg-darkbg', 'text-E2E8F0');
+                // Could update other colors here
+            }
+        }
+
+        /**
+         * Calculates the color class based on the team's guess versus the correct answer.
+         * @param {number} guess - The year the team guessed.
+         * @param {number} correct - The correct year.
+         * @returns {string} - Tailwind class for styling.
+         */
+        function getResponseColor(guess, correct) {
+            if (!guess) return '';
+            const diff = Math.abs(guess - correct);
+            if (diff === 0) return 'correct-answer';
+            if (diff <= 5) return 'near-answer';
+            return 'incorrect-answer';
+        }
+
+
+        /**
+         * Renders the game state to the display.
+         */
+        function renderDisplay() {
+            // Update Question and Status
+            document.getElementById('question-text').textContent = currentState.questionText;
+            document.getElementById('q-number').textContent = `Händelse #${currentState.questionIndex + 1}`;
+            document.getElementById('q-total').textContent = currentState.totalQuestions;
+            document.getElementById('status-message').textContent = currentState.isRevealed ? "Svaret är avslöjat!" : (currentState.isTimerRunning ? "Skicka in era gissningar NU!" : "Väntar på Game Control...");
+
+            // Update Timer Display
+            const timerEl = document.getElementById('timer-display');
+            const minutes = Math.floor(currentState.timeRemaining / 60);
+            const seconds = currentState.timeRemaining % 60;
+            timerEl.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            // Timer Color Feedback
+            if (currentState.isTimerRunning && currentState.timeRemaining <= 10) {
+                 timerEl.classList.add('bg-red-800');
+                 timerEl.classList.remove('bg-red-600');
+            } else if (currentState.isTimerRunning) {
+                 timerEl.classList.add('bg-red-600');
+                 timerEl.classList.remove('bg-red-800');
+            } else {
+                 timerEl.classList.remove('bg-red-600', 'bg-red-800');
+                 timerEl.classList.add('bg-cardbg', 'text-secondary');
+            }
+            
+            // Update Answer Reveal
+            const answerRevealEl = document.getElementById('answer-reveal');
+            if (currentState.isRevealed) {
+                answerRevealEl.textContent = `Rätt svar: ${currentState.correctAnswer}`;
+                answerRevealEl.classList.remove('hidden');
+            } else {
+                answerRevealEl.classList.add('hidden');
+            }
+
+            // Update Scoreboard
+            const scoreboardEl = document.getElementById('scoreboard');
+            scoreboardEl.innerHTML = currentState.teamScores
+                .sort((a, b) => b.score - a.score) // Sort by score descending
+                .map(team => {
+                    const responseText = team.hasAnswered 
+                        ? (currentState.isRevealed ? `${team.response}` : 'Inskickat!')
+                        : 'Väntar...';
+                    
+                    const responseClass = currentState.isRevealed 
+                        ? getResponseColor(team.response, currentState.correctAnswer)
+                        : (team.hasAnswered ? 'bg-indigo-600 border-left-blue-400' : '');
+
+                    return `
+                        <div class="score-row p-3 rounded-lg flex justify-between items-center ${responseClass}">
+                            <span class="text-xl font-semibold">${team.id}</span>
+                            <div class="text-right">
+                                <span class="text-sm font-light block ${currentState.isRevealed ? 'text-darkbg' : 'text-gray-400'}">${responseText}</span>
+                                <span class="text-2xl font-bold ${currentState.isRevealed ? 'text-darkbg' : 'text-secondary'}">${team.score} P</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+            // Update Theme (In a real app, this would react to the masterState's theme setting)
+            updateTheme(currentState.theme);
+        }
+
+        /**
+         * Event listener for fullscreen change. Hides the prompt when full screen is active.
+         */
+        document.addEventListener('fullscreenchange', () => {
+            const fullscreenPrompt = document.getElementById('fullscreen-prompt');
+            const mainDisplay = document.getElementById('main-display');
+            
+            if (document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement) {
+                // Entered fullscreen
+                fullscreenPrompt.classList.add('hidden');
+                mainDisplay.classList.remove('hidden');
+                // Focus on the main content
+                mainDisplay.focus(); 
+            } else {
+                // Exited fullscreen
+                fullscreenPrompt.classList.remove('hidden');
+                mainDisplay.classList.add('hidden');
+            }
+        });
+
+        // Initial render on load
+        document.addEventListener('DOMContentLoaded', () => {
+            renderDisplay(); 
+        });
+        
+        // Simulating the Game State Update (in a real app, this would be polling the API)
+        setInterval(renderDisplay, 1000); 
+    </script>
+</body>
+</html>
