@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Apps Script CORS Test</title>
+    <!-- Laddar in Tailwind CSS för snabb och snygg styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Sätter standardtypsnitt */
+        body { font-family: 'Inter', sans-serif; background-color: #f7f9fb; }
+    </style>
+</head>
+<body class="p-8 flex items-center justify-center min-h-screen">
+
+    <div id="app" class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-lg">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">
+            Apps Script Server Test
+        </h1>
+
+        <div class="mb-6">
+            <label for="apiUrl" class="block text-sm font-medium text-gray-700 mb-1">Apps Script URL:</label>
+            <!-- Fältet är förifyllt med din senaste URL -->
+            <input type="text" id="apiUrl" class="w-full p-2 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500" placeholder="Klistra in din URL här..." readonly>
+        </div>
+
+        <button id="sendDataButton" class="w-full py-3 px-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition duration-150 shadow-lg shadow-blue-500/50">
+            Skicka Test-POST-data
+        </button>
+
+        <!-- Meddelandefält för status (döljs tills anropet är klart) -->
+        <div id="statusMessage" class="mt-6 p-4 rounded-lg text-sm font-medium text-center hidden"></div>
+
+        <!-- Visning av serversvaret -->
+        <div id="responseDisplay" class="mt-6 border border-gray-200 rounded-lg p-4 bg-gray-50 overflow-x-auto hidden">
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">Server Svar:</h3>
+            <pre id="responseText" class="whitespace-pre-wrap text-gray-600 text-xs"></pre>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const apiUrlInput = document.getElementById('apiUrl');
+            const sendButton = document.getElementById('sendDataButton');
+            const statusMessage = document.getElementById('statusMessage');
+            const responseDisplay = document.getElementById('responseDisplay');
+            const responseText = document.getElementById('responseText');
+
+            // VIKTIGT: Din Apps Script URL, klistrad in direkt från ditt senaste svar.
+            const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbySEthwOkqZzWRq9WevPeRxwKxXp13Pa4KvcCY_l_Qt1XdFngMb0F7FUEfwJsd4IqMfpQ/exec";
+            apiUrlInput.value = APPS_SCRIPT_URL;
+
+            function showStatus(message, type = 'info') {
+                statusMessage.textContent = message;
+                statusMessage.className = 'mt-6 p-4 rounded-lg text-sm font-medium text-center';
+                
+                if (type === 'error') {
+                    statusMessage.classList.add('bg-red-100', 'text-red-800');
+                } else if (type === 'success') {
+                    statusMessage.classList.add('bg-green-100', 'text-green-800');
+                } else { // info/loading
+                    statusMessage.classList.add('bg-yellow-100', 'text-yellow-800');
+                }
+                statusMessage.classList.remove('hidden');
+            }
+
+            sendButton.addEventListener('click', async () => {
+                const url = apiUrlInput.value.trim();
+
+                showStatus("Skickar data till Apps Script...", 'info');
+                responseDisplay.classList.add('hidden');
+                responseText.textContent = '';
+                
+                try {
+                    const testData = {
+                        test: true,
+                        source: "Webbläsare (CORS-Enabled)"
+                    };
+
+                    // Använder standard Fetch API
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(testData) 
+                    });
+
+                    // Kontrollera HTTP-status
+                    if (!response.ok) {
+                        // Kasta ett fel om HTTP-status inte är 2xx
+                        throw new Error(`HTTP Error Status: ${response.status} ${response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    
+                    // Kontrollera om Apps Script returnerade en framgångsstatus i svaret
+                    if (result.status === 'SUCCESS') {
+                        showStatus(`Framgång! Server svarade korrekt. Status: ${result.statusCode}`, 'success');
+                    } else {
+                         showStatus(`Servern svarade, men med fel: ${result.message}`, 'error');
+                    }
+
+                    responseText.textContent = JSON.stringify(result, null, 2);
+                    responseDisplay.classList.remove('hidden');
+
+                } catch (error) {
+                    // Detta fångar nätverksfel eller fel som kastas ovan (inklusive den ursprungliga "Failed to fetch" om CORS misslyckas)
+                    console.error("Fetch Error:", error);
+                    showStatus(`Ett fel uppstod: ${error.message}. Kontrollera att CORS-fixen i Apps Script är distribuerad och att URL:en är korrekt.`, 'error');
+                    responseText.textContent = "Kunde inte ansluta till servern eller ett fel uppstod under databehandlingen.";
+                    responseDisplay.classList.remove('hidden');
+                }
+            });
+        });
+    </script>
+</body>
+</html> 

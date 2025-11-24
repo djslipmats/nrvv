@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apps Script Testverktyg</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+    </style>
+</head>
+<body class="p-6 sm:p-10 min-h-screen flex items-start justify-center">
+    <div class="w-full max-w-2xl bg-white shadow-xl rounded-xl p-8">
+        <h1 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-2">Apps Script Testverktyg</h1>
+        <p class="text-sm text-red-600 mb-4 font-medium">Använd denna vy för att bekräfta att din Apps Script URL är korrekt deployad och tillgänglig för externa anrop.</p>
+        
+        <label for="appsScriptUrl" class="block text-sm font-medium text-gray-700 mb-1">Din Apps Script Exec URL:</label>
+        <input type="text" id="appsScriptUrl" value="https://script.google.com/macros/s/AKfycbzD1eP5QQ2rg2vkGwVfECAgwYVFB9s-qHVm3R3TbSM6-ocfeHT4TybPU7tidU8tqtZn0Q/exec"
+               class="w-full p-3 mb-4 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm">
+
+        <label for="testAction" class="block text-sm font-medium text-gray-700 mb-1">Åtgärd att skicka (Action):</label>
+        <input type="text" id="testAction" value="getGameState"
+               class="w-full p-3 mb-6 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm">
+        
+        <button id="testButton" class="w-full bg-blue-600 text-white p-3 rounded-lg font-semibold hover:bg-blue-700 transition">
+            Testa Apps Script Anrop (POST)
+        </button>
+
+        <div class="mt-8">
+            <h2 class="text-lg font-semibold text-gray-800 mb-2">Testresultat:</h2>
+            <div id="resultStatus" class="p-3 mb-2 rounded-lg font-medium hidden"></div>
+            
+            <label class="block text-sm font-medium text-gray-700 mb-1">Rådata från Apps Script:</label>
+            <textarea id="resultOutput" rows="8" readonly
+                      class="w-full p-3 border border-gray-300 rounded-lg bg-gray-100 text-sm font-mono"></textarea>
+        </div>
+    </div>
+
+    <script>
+        const urlInput = document.getElementById('appsScriptUrl');
+        const actionInput = document.getElementById('testAction');
+        const testButton = document.getElementById('testButton');
+        const resultStatus = document.getElementById('resultStatus');
+        const resultOutput = document.getElementById('resultOutput');
+
+        function setStatus(text, type = 'info') {
+            resultStatus.textContent = text;
+            resultStatus.classList.remove('hidden', 'bg-red-100', 'text-red-800', 'bg-green-100', 'text-green-800', 'bg-blue-100', 'text-blue-800');
+            
+            switch (type) {
+                case 'success':
+                    resultStatus.classList.add('bg-green-100', 'text-green-800');
+                    break;
+                case 'error':
+                    resultStatus.classList.add('bg-red-100', 'text-red-800');
+                    break;
+                default:
+                    resultStatus.classList.add('bg-blue-100', 'text-blue-800');
+            }
+        }
+
+        testButton.onclick = async function() {
+            const url = urlInput.value.trim();
+            const action = actionInput.value.trim();
+            
+            if (!url.startsWith('https://script.google.com/macros/s/')) {
+                setStatus('Fel: Ogiltig Apps Script URL.', 'error');
+                return;
+            }
+
+            // Skapa test-payload
+            const payload = { 
+                action: action, 
+                test: true, // Lägg till en testflagga
+                timestamp: new Date().toISOString()
+            };
+
+            testButton.disabled = true;
+            testButton.textContent = 'Skickar testanrop...';
+            setStatus('Skickar anrop till Apps Script...', 'info');
+            resultOutput.value = 'Väntar på svar...';
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    mode: 'cors',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                testButton.disabled = false;
+                testButton.textContent = 'Testa Apps Script Anrop (POST)';
+
+                if (!response.ok) {
+                    throw new Error(`Nätverksfel: Status ${response.status} ${response.statusText}. Kontrollera din Apps Script Deployment.`);
+                }
+                
+                const responseText = await response.text();
+                
+                try {
+                    // Försök att parsa som JSON för bättre läsbarhet
+                    const jsonResult = JSON.parse(responseText);
+                    resultOutput.value = JSON.stringify(jsonResult, null, 2);
+                    
+                    if (jsonResult.error) {
+                        setStatus(`API Error: ${jsonResult.error}`, 'error');
+                    } else {
+                        setStatus('Framgångsrikt: Apps Script svarade med giltig JSON.', 'success');
+                    }
+                } catch (e) {
+                    // Om det inte är JSON (t.ex. HTML-fel eller text)
+                    resultOutput.value = responseText;
+                    setStatus('Varning: Apps Script svarade, men det var inte JSON (kanske HTML eller rå text). Kontrollera din do/Post-funktion.', 'warning');
+                }
+
+            } catch (error) {
+                testButton.disabled = false;
+                testButton.textContent = 'Testa Apps Script Anrop (POST)';
+                resultOutput.value = `Fel: ${error.message}`;
+                setStatus('Kunde inte ansluta: Kontrollera URL och Deployment-behörigheter ("Anyone" access).', 'error');
+                console.error("Test Fetch Error:", error);
+            }
+        };
+    </script>
+</body>
+</html>
