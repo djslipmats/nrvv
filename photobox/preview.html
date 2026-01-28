@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Senaste bilderna - Radera?</title>
+    <style>
+        body { font-family: sans-serif; background: #111; color: white; text-align: center; padding: 20px; }
+        .grid { display: grid; grid-template-columns: 1fr; gap: 20px; max-width: 500px; margin: 0 auto; }
+        .card { background: #222; padding: 10px; border-radius: 10px; position: relative; }
+        img { width: 100%; border-radius: 5px; }
+        .delete-btn { 
+            background: #ff4444; color: white; border: none; padding: 15px; 
+            width: 100%; border-radius: 5px; font-weight: bold; margin-top: 10px;
+        }
+        .time-hint { font-size: 0.8rem; color: #888; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Senaste bilderna</h1>
+    <p>Här kan du ta bort bilder du nyss tagit.</p>
+    <div id="gallery" class="grid">Laddar bilder...</div>
+
+    <script>
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwgPBkkd2rR7oePF91BeOGBu5cQlZ4SropIG-axnG9aiEqoKGLESR14uW1ALM9M-SUi-w/exec";
+
+        async function loadImages() {
+            const res = await fetch(SCRIPT_URL);
+            const images = await res.json();
+            const container = document.getElementById('gallery');
+            container.innerHTML = '';
+
+            images.forEach(img => {
+                const now = Date.now();
+                const ageMinutes = Math.floor((now - img.timestamp) / 60000);
+                
+                // Visa bara bilder som är yngre än 10 minuter (eller alla om du vill)
+                if (ageMinutes <= 10) {
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    card.innerHTML = `
+                        <div class="time-hint">Tagen för ${ageMinutes} min sedan</div>
+                        <img src="https://drive.google.com/thumbnail?id=${img.id}&sz=w600">
+                        <button class="delete-btn" onclick="deleteImage('${img.id}')">RADERA BILD</button>
+                    `;
+                    container.appendChild(card);
+                }
+            });
+            if(container.innerHTML === '') container.innerHTML = 'Inga nya bilder att visa.';
+        }
+
+        async function deleteImage(id) {
+            if (confirm("Är du säker på att du vill ta bort bilden?")) {
+                await fetch(`${SCRIPT_URL}?action=delete&fileId=${id}`);
+                alert("Bilden borttagen!");
+                loadImages(); // Uppdatera listan
+            }
+        }
+
+        loadImages();
+        // Uppdatera var 30:e sekund automatiskt
+        setInterval(loadImages, 30000);
+    </script>
+</body>
+</html>
