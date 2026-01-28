@@ -35,7 +35,7 @@
                 const ageMinutes = Math.floor((now - img.timestamp) / 60000);
                 
                 // Visa bara bilder som är yngre än 10 minuter (eller alla om du vill)
-                if (ageMinutes <= 10) {
+                if (ageMinutes <= 1440) {
                     const card = document.createElement('div');
                     card.className = 'card';
                     card.innerHTML = `
