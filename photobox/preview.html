@@ -3,63 +3,97 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Senaste bilderna - Radera?</title>
+    <title>Admin - Alla bilder</title>
     <style>
         body { font-family: sans-serif; background: #111; color: white; text-align: center; padding: 20px; }
-        .grid { display: grid; grid-template-columns: 1fr; gap: 20px; max-width: 500px; margin: 0 auto; }
-        .card { background: #222; padding: 10px; border-radius: 10px; position: relative; }
-        img { width: 100%; border-radius: 5px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; max-width: 1000px; margin: 0 auto; }
+        .card { background: #222; padding: 15px; border-radius: 10px; border: 1px solid #333; }
+        img { width: 100%; border-radius: 5px; background: #000; min-height: 150px; }
         .delete-btn { 
-            background: #ff4444; color: white; border: none; padding: 15px; 
-            width: 100%; border-radius: 5px; font-weight: bold; margin-top: 10px;
+            background: #ff4444; color: white; border: none; padding: 12px; 
+            width: 100%; border-radius: 5px; font-weight: bold; margin-top: 10px; cursor: pointer;
         }
-        .time-hint { font-size: 0.8rem; color: #888; margin-bottom: 5px; }
+        #status-log { 
+            background: #000; color: #0f0; padding: 10px; font-family: monospace; 
+            font-size: 12px; margin-bottom: 20px; border: 1px solid #0f0; display: inline-block;
+        }
     </style>
 </head>
 <body>
-    <h1>Senaste bilderna</h1>
-    <p>Här kan du ta bort bilder du nyss tagit.</p>
-    <div id="gallery" class="grid">Laddar bilder...</div>
+    <h1>Admin: Hantera bilder</h1>
+    <div id="status-log">Status: Startar...</div>
+    
+    <div id="gallery" class="grid">Söker efter bilder...</div>
 
     <script>
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwgPBkkd2rR7oePF91BeOGBu5cQlZ4SropIG-axnG9aiEqoKGLESR14uW1ALM9M-SUi-w/exec";
+        // BYT UT DENNA MOT DIN URL
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzsHH4fKKZEcUvnLFEOBTvs1Op8yjPw_Qg-HwFC1vuv/dev";
+
+        const logEl = document.getElementById('status-log');
+        const container = document.getElementById('gallery');
+
+        function log(msg) {
+            logEl.innerText = "Status: " + msg;
+            console.log(msg);
+        }
 
         async function loadImages() {
-            const res = await fetch(SCRIPT_URL);
-            const images = await res.json();
-            const container = document.getElementById('gallery');
-            container.innerHTML = '';
-
-            images.forEach(img => {
-                const now = Date.now();
-                const ageMinutes = Math.floor((now - img.timestamp) / 60000);
+            log("Anropar Google Script...");
+            try {
+                const res = await fetch(SCRIPT_URL);
+                const images = await res.json();
                 
-                // Visa bara bilder som är yngre än 10 minuter (eller alla om du vill)
-                if (ageMinutes <= 1440) {
+                if (images.error) {
+                    log("Fel från skript: " + images.error);
+                    return;
+                }
+
+                log("Hittade " + images.length + " bilder.");
+                container.innerHTML = '';
+
+                if (images.length === 0) {
+                    container.innerHTML = 'Mappen är tom.';
+                    return;
+                }
+
+                images.forEach(img => {
                     const card = document.createElement('div');
                     card.className = 'card';
+                    // Vi använder en tumnagel-länk som fungerar om mappen är delad som "Alla med länken"
+                    const thumbUrl = `https://drive.google.com/thumbnail?id=${img.id}&sz=w400`;
+                    
                     card.innerHTML = `
-                        <div class="time-hint">Tagen för ${ageMinutes} min sedan</div>
-                        <img src="https://drive.google.com/thumbnail?id=${img.id}&sz=w600">
+                        <img src="${thumbUrl}" alt="Foto">
+                        <div style="margin-top:5px; font-size:11px; color:#666;">ID: ${img.id}</div>
                         <button class="delete-btn" onclick="deleteImage('${img.id}')">RADERA BILD</button>
                     `;
                     container.appendChild(card);
-                }
-            });
-            if(container.innerHTML === '') container.innerHTML = 'Inga nya bilder att visa.';
-        }
-
-        async function deleteImage(id) {
-            if (confirm("Är du säker på att du vill ta bort bilden?")) {
-                await fetch(`${SCRIPT_URL}?action=delete&fileId=${id}`);
-                alert("Bilden borttagen!");
-                loadImages(); // Uppdatera listan
+                });
+            } catch (e) {
+                log("Nätverksfel: " + e.message);
             }
         }
 
+        async function deleteImage(id) {
+            if (confirm("Vill du verkligen radera denna bild? Den flyttas till papperskorgen.")) {
+                log("Raderar " + id + "...");
+                try {
+                    const res = await fetch(`${SCRIPT_URL}?action=delete&fileId=${id}`);
+                    const result = await res.json();
+                    if (result.status === "success") {
+                        alert("Borttagen!");
+                        loadImages();
+                    } else {
+                        alert("Kunde inte radera: " + JSON.stringify(result));
+                    }
+                } catch (e) {
+                    log("Fel vid radering: " + e.message);
+                }
+            }
+        }
+
+        // Kör direkt
         loadImages();
-        // Uppdatera var 30:e sekund automatiskt
-        setInterval(loadImages, 30000);
     </script>
 </body>
 </html>
