@@ -36,64 +36,42 @@
             logEl.innerText = "Status: " + msg;
             console.log(msg);
         }
+async function loadImages() {
+    log("Anropar Google Script...");
+    try {
+        // Vi lägger till redirect: 'follow' (standard, men bra att vara tydlig)
+        const res = await fetch(SCRIPT_URL, {
+            method: 'GET',
+            mode: 'cors', // Vi vill ha JSON tillbaka
+        });
+        
+        if (!res.ok) throw new Error("Servern svarade inte korrekt.");
+        
+        const images = await res.json();
+        
+        log("Hittade " + images.length + " bilder.");
+        container.innerHTML = '';
 
-        async function loadImages() {
-            log("Anropar Google Script...");
-            try {
-                const res = await fetch(SCRIPT_URL);
-                const images = await res.json();
-                
-                if (images.error) {
-                    log("Fel från skript: " + images.error);
-                    return;
-                }
-
-                log("Hittade " + images.length + " bilder.");
-                container.innerHTML = '';
-
-                if (images.length === 0) {
-                    container.innerHTML = 'Mappen är tom.';
-                    return;
-                }
-
-                images.forEach(img => {
-                    const card = document.createElement('div');
-                    card.className = 'card';
-                    // Vi använder en tumnagel-länk som fungerar om mappen är delad som "Alla med länken"
-                    const thumbUrl = `https://drive.google.com/thumbnail?id=${img.id}&sz=w400`;
-                    
-                    card.innerHTML = `
-                        <img src="${thumbUrl}" alt="Foto">
-                        <div style="margin-top:5px; font-size:11px; color:#666;">ID: ${img.id}</div>
-                        <button class="delete-btn" onclick="deleteImage('${img.id}')">RADERA BILD</button>
-                    `;
-                    container.appendChild(card);
-                });
-            } catch (e) {
-                log("Nätverksfel: " + e.message);
-            }
+        if (images.length === 0) {
+            container.innerHTML = 'Mappen är tom.';
+            return;
         }
 
-        async function deleteImage(id) {
-            if (confirm("Vill du verkligen radera denna bild? Den flyttas till papperskorgen.")) {
-                log("Raderar " + id + "...");
-                try {
-                    const res = await fetch(`${SCRIPT_URL}?action=delete&fileId=${id}`);
-                    const result = await res.json();
-                    if (result.status === "success") {
-                        alert("Borttagen!");
-                        loadImages();
-                    } else {
-                        alert("Kunde inte radera: " + JSON.stringify(result));
-                    }
-                } catch (e) {
-                    log("Fel vid radering: " + e.message);
-                }
-            }
-        }
-
-        // Kör direkt
-        loadImages();
-    </script>
-</body>
+        images.forEach(img => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            // Här använder vi tumnageln direkt
+            const thumbUrl = `https://drive.google.com/thumbnail?id=${img.id}&sz=w400`;
+            
+            card.innerHTML = `
+                <img src="${thumbUrl}" alt="Foto" onerror="this.src='https://placehold.co/400x300?text=Kunde+inte+ladda+bild'">
+                <div style="margin-top:5px; font-size:11px; color:#666;">ID: ${img.id}</div>
+                <button class="delete-btn" onclick="deleteImage('${img.id}')">RADERA BILD</button>
+            `;
+            container.appendChild(card);
+        });
+    } catch (e) {
+        log("Nätverksfel: " + e.message + ". Kontrollera att din Web App URL är korrekt och att du har distribuerat som 'Anyone'.");
+    }
+}
 </html>
