@@ -52,7 +52,9 @@
     </style>
 </head>
 <body>
-
+<audio id="shutter-sound" preload="auto">
+    <source src="https://www.soundjay.com/mechanical/camera-shutter-click-08.mp3" type="audio/mpeg">
+</audio>
 <div id="camera-container">
     <video id="webcam" autoplay playsinline></video>
 </div>
@@ -94,29 +96,37 @@
         } catch (err) { alert("Kameran kunde inte startas."); }
     }
 
-    async function takePhoto() {
-        if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
-        
-        btn.style.pointerEvents = 'none';
-        hintText.style.opacity = '0';
-        
-        for (let i = 5; i > 0; i--) {
-            countdownEl.innerText = i;
-            await new Promise(r => setTimeout(r, 1000));
-        }
-        countdownEl.innerText = "";
+async function takePhoto() {
+    // 1. Aktivera fullskärm (krävs för ljud/video på Android)
+    if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+    
+    btn.style.pointerEvents = 'none';
+    hintText.style.opacity = '0';
+    
+    // 2. Nedräkning
+    for (let i = 3; i > 0; i--) {
+        countdownEl.innerText = i;
+        await new Promise(r => setTimeout(r, 1000));
+    }
+    countdownEl.innerText = "";
 
-        // Blixt
-        flash.style.opacity = 1;
-        setTimeout(() => flash.style.opacity = 0, 150);
+    // 3. LJUD & BLIXT (Sker samtidigt)
+    const shutterSound = document.getElementById('shutter-sound');
+    shutterSound.play().catch(e => console.log("Ljud blockerat av webbläsare"));
 
-        // Rita bilden
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d');
-        ctx.translate(canvas.width, 0);
-        ctx.scale(-1, 1);
-        ctx.drawImage(video, 0, 0);
+    flash.style.opacity = 1;
+    setTimeout(() => flash.style.opacity = 0, 150);
+
+    // 4. Fånga bilden
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0);
+
+    // ... resten av koden (visa förhandsvisning och skicka till Drive)
+
 
         const imageData = canvas.toDataURL('image/jpeg', 0.85);
         
